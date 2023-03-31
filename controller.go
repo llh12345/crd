@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/gogo/protobuf/proto"
 	jobv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	v1 "k8s.io/client-go/informers/batch/v1"
@@ -228,16 +230,42 @@ func (c *Controller) syncHandler(key string) error {
 	return nil
 }
 
+func handleJobObj(job *jobv1.Job) *jobv1.Job {
+	// handle job object
+	delete(job.Spec.Selector.MatchLabels, "controller-uid")
+	delete(job.Spec.Template.ObjectMeta.Labels, "controller-uid")
+	infinityArgs := make([]string, 0)
+	infinityArgs = append(infinityArgs, "infinity")
+	job.Spec.Template.Spec.Containers[0].Args = infinityArgs
+
+	sleepArgs := make([]string, 0)
+	sleepArgs = append(sleepArgs, "sleep")
+	job.Spec.Template.Spec.Containers[0].Command = sleepArgs
+	job.ObjectMeta.SelfLink = ""
+	job.ObjectMeta.ResourceVersion = ""
+	job.ObjectMeta.UID = ""
+	job.Spec.Parallelism = proto.Int32(1)
+
+	return job
+}
+
 func saveYaml(obj interface{}) {
 	job := obj.(*jobv1.Job)
 	job.Kind = "Job"
 	job.APIVersion = "batch/v1"
-	jsonStr, err := json.Marshal(job)
+	job = handleJobObj(job)
+
+	oriJobName := job.Spec.Template.ObjectMeta.Labels["job-name"]
+	jobName := oriJobName + "-test"
+
+	// handle end
+	jsonBytes, err := json.Marshal(job)
+	jsonStr := strings.Replace(string(jsonBytes), oriJobName, jobName, -1)
 	if err != nil {
 		glog.Errorf("new added job convert to json error: %v", err)
 		return
 	}
-	yaml, err := yaml.JSONToYAML(jsonStr)
+	yaml, err := yaml.JSONToYAML([]byte(jsonStr))
 	if err != nil {
 		glog.Errorf("new added job convert to yaml error: %v", err)
 		return
