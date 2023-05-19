@@ -246,6 +246,21 @@ func handleJobObj(job *jobv1.Job) *jobv1.Job {
 	job.ObjectMeta.UID = ""
 	job.Spec.Parallelism = proto.Int32(1)
 
+	hasEks := false
+	for _, toleration := range job.Spec.Template.Spec.Tolerations {
+		if toleration.Key == "eks.tke.cloud.tencent.com/eklet" {
+			hasEks = true
+			break
+		}
+	}
+	if !hasEks {
+		toleration := &corev1.Toleration{
+			Effect:   "NoSchedule",
+			Key:      "eks.tke.cloud.tencent.com/eklet",
+			Operator: "Exists",
+		}
+		job.Spec.Template.Spec.Tolerations = append(job.Spec.Template.Spec.Tolerations, *toleration)
+	}
 	return job
 }
 
