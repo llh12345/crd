@@ -245,7 +245,9 @@ func handleJobObj(job *jobv1.Job) *jobv1.Job {
 	job.ObjectMeta.ResourceVersion = ""
 	job.ObjectMeta.UID = ""
 	job.Spec.Parallelism = proto.Int32(1)
-
+	if job.ObjectMeta.Labels != nil {
+		delete(job.ObjectMeta.Labels, "xverse-task-id")
+	}
 	hasEks := false
 	for _, toleration := range job.Spec.Template.Spec.Tolerations {
 		if toleration.Key == "eks.tke.cloud.tencent.com/eklet" {
